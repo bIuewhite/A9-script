@@ -19,10 +19,10 @@ tests/test_version.py 会检查「版本号格式」以及「CHANGELOG/README �
 写上当前版本」，所以漏改会被测试拦下来。
 """
 
-__version__ = "1.0.0"
+__version__ = "1.0.1"
 
 # 发版日期
-__release_date__ = "2026-09-12"
+__release_date__ = "2026-09-14"
 
 # 展示用文本（界面、日志统一用它）
 VERSION_TEXT = "v" + __version__

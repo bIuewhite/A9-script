@@ -1,6 +1,6 @@
 # 狂野飙车9 自动挂机脚本（PC 雷电模拟器）
 
-![version](https://img.shields.io/badge/version-v1.0.0-3fb950)
+![version](https://img.shields.io/badge/version-v1.0.1-3fb950)
 ![python](https://img.shields.io/badge/python-3.10%2B-3776ab)
 ![license](https://img.shields.io/badge/license-GPL--3.0-blue)
 ![platform](https://img.shields.io/badge/platform-Windows-0078d4)
@@ -8,7 +8,7 @@
 用 **Python + ADB + OpenCV 模板匹配** 做的《狂野飙车9》PC 模拟器自动挂机脚本，
 带一个桌面控制台（Tkinter 写的，**不是网页**）。
 
-当前版本 **v1.0.0**，更新内容见 [CHANGELOG.md](CHANGELOG.md)。
+当前版本 **v1.0.1**，更新内容见 [CHANGELOG.md](CHANGELOG.md)。
 
 模拟器必须是 **横屏 1920×1080**，窗口不要缩放（脚本用 adb 直接操作屏幕，
 和窗口位置无关，但截图内容必须是真实的游戏画面）。
@@ -261,9 +261,9 @@ python main.py run
 > 仓库里**不带 exe**：`启动控制台.bat` 就是图形界面的入口，双击即用。
 > 想要 exe 启动器（`A9控制台.exe` 等），去 [Releases](../../releases) 下载，两个附件二选一：
 >
-> - **`A9-script-v1.0.0-full.zip`（开箱即用整合包，推荐）**：源码 + 5 个 exe + 起步说明，
+> - **`A9-script-v1.0.1-full.zip`（开箱即用整合包，推荐）**：源码 + 5 个 exe + 起步说明，
 >   解压得到一个文件夹，双击里面的 `一键配置.bat`，再双击 `A9控制台.exe` 就行。
-> - `A9-launchers-v1.0.0.zip`：只有 5 个 exe（967 KB），适合已经有源码的人，
+> - `A9-launchers-v1.0.1.zip`：只有 5 个 exe（967 KB），适合已经有源码的人，
 >   解压到项目文件夹里（和 `gui.py` 同一层）即可。
 >
 > 也可以自己双击 `build_launcher.bat` 编译（需要 Windows 自带的 .NET Framework）。
