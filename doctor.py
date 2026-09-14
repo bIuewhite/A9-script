@@ -73,6 +73,12 @@ def parse_wm_size(text):
     return found
 
 
+# 狂野飙车9 国服是分渠道发行的（TapTap / 4399 / 华为 / 小米 …），包名各不相同，
+# 但都带特征词。识别逻辑放在 config.py，体检和脚本本体共用一套。
+guess_game_package = config.guess_game_package
+guess_activity = config.guess_activity
+
+
 def check_python(info=None):
     """检查 Python 版本。返回 (是否通过, 说明)。"""
     info = info or sys.version_info
@@ -138,10 +144,21 @@ def missing_templates(exists=None):
 
 
 # ==================== 体检主流程 ====================
-def _run_adb(args, timeout=15):
+def _run_adb(args, timeout=15, use_serial=True):
+    """跑一条 adb 命令。
+
+    use_serial=True 时会带上 -s <设备序列号>：同时开着多个模拟器（比如雷电 + MuMu）时，
+    不带 -s 的 adb 会直接报 "more than one device/emulator"，
+    分辨率、游戏安装这些检查就会全部失败（看起来像"游戏没装"，其实是没指定设备）。
+    """
+    cmd = [config.ADB_PATH]
+    first = (args[0] if args else "")
+    if use_serial and config.DEVICE_SERIAL and first not in (
+            "devices", "connect", "disconnect", "start-server", "kill-server"):
+        cmd += ["-s", config.DEVICE_SERIAL]
+    cmd += list(args)
     try:
-        p = subprocess.run([config.ADB_PATH] + list(args), capture_output=True,
-                           timeout=timeout,
+        p = subprocess.run(cmd, capture_output=True, timeout=timeout,
                            creationflags=0x08000000 if os.name == "nt" else 0)
         return p.returncode, p.stdout.decode("utf-8", "ignore")
     except Exception as e:
@@ -200,10 +217,17 @@ def run(verbose=True):
 
     # 4) 设备 / 分辨率 / 游戏
     if adb_ok:
-        rc, out = _run_adb(["devices"])
+        rc, out = _run_adb(["devices"], use_serial=False)
         devices = [l.split("\t")[0] for l in out.splitlines()[1:] if "\tdevice" in l]
         if config.DEVICE_SERIAL in devices:
             say(MARK_OK, "模拟器连接", f"已连接 {config.DEVICE_SERIAL}")
+            if len(devices) > 1:
+                others = [d for d in devices if d != config.DEVICE_SERIAL]
+                say(MARK_WARN, "多个设备",
+                    f"同时连着 {len(devices)} 个：{'、'.join(devices)}",
+                    f"脚本只会用「设备序列号」指定的那个（现在是 {config.DEVICE_SERIAL}）\n"
+                    f"想换成别的，就把「设备序列号」改成 {'、'.join(others)}\n"
+                    f"（图形界面：参数设置 → 设备；或改 config.py 的 DEVICE_SERIAL）")
         elif devices:
             say(MARK_BAD, "模拟器连接",
                 f"配置的是 {config.DEVICE_SERIAL}，实际连着的是 {'、'.join(devices)}",
@@ -211,17 +235,45 @@ def run(verbose=True):
                 f"（图形界面：参数设置 → 设备 → 设备序列号；或改 config.py 的 DEVICE_SERIAL）")
         else:
             say(MARK_BAD, "模拟器连接", "没有看到任何设备",
-                "先把雷电模拟器启动起来（开机），再跑一次体检")
+                "先把模拟器启动起来（开机），再跑一次体检")
 
         rc, out = _run_adb(["shell", "wm", "size"])
         state, msg, hint = check_resolution(parse_wm_size(out))
+        if state != "ok" and len(devices) > 1:
+            hint = (f"同时开着多个模拟器时，adb 必须指定设备才读得到分辨率。\n"
+                    f"请只留一个模拟器在跑，或把「设备序列号」填成当前在用的那个"
+                    f"（现在连着：{'、'.join(devices)}）")
         say({"ok": MARK_OK, "warn": MARK_WARN, "bad": MARK_BAD}[state], "分辨率", msg, hint)
 
         rc, out = _run_adb(["shell", "pm", "list", "packages", config.GAME_PACKAGE])
         installed = config.GAME_PACKAGE in out
-        say(MARK_OK if installed else MARK_WARN, "游戏安装",
-            "已安装" if installed else "没检测到（模拟器里还没装游戏）",
-            "" if installed else "在模拟器里装好《狂野飙车9》并登录，再跑脚本")
+        if installed:
+            say(MARK_OK, "游戏安装", "已安装")
+        else:
+            # 装的是别的渠道服？直接帮他把真实包名和 Activity 找出来
+            found = []
+            rc2, allout = _run_adb(["shell", "pm", "list", "packages"], timeout=25)
+            found = guess_game_package(allout)
+            if found:
+                pkg = found[0]
+                rc3, aout = _run_adb(
+                    ["shell", "cmd", "package", "resolve-activity", "--brief", pkg])
+                act = guess_activity(aout) or f"{pkg}/.MainActivity"
+                say(MARK_BAD, "游戏安装",
+                    f"配置的 {config.GAME_PACKAGE} 没找到，但发现了 {pkg}",
+                    f"你装的是别的渠道服（4399 / 华为 / 小米 …），包名不一样。\n"
+                    f"用记事本打开 config.py，把这两行改成：\n"
+                    f'    GAME_PACKAGE  = "{pkg}"\n'
+                    f'    GAME_ACTIVITY = "{act}"\n'
+                    f"保存后重启脚本，再跑一次体检就变 √ 了"
+                    + (f"\n（还发现了其它候选：{'、'.join(found[1:])}）" if len(found) > 1 else ""))
+            else:
+                say(MARK_WARN, "游戏安装", "没检测到（模拟器里还没装游戏）",
+                    f"1. 模拟器里确实装了游戏的话：先用这条命令看真实包名，\n"
+                    f"   {config.ADB_PATH} -s {config.DEVICE_SERIAL} shell pm list packages\n"
+                    f"   找 kuang / aligames / gameloft 那几行，填进 config.py 的 GAME_PACKAGE\n"
+                    f"2. 如果同时开着多个模拟器：先只留一个再跑一次体检\n"
+                    f"3. 确实没装：装好《狂野飙车9》并登录，再跑脚本")
 
         rc, out = _run_adb(["shell", "dumpsys", "window"])
         fg = config.GAME_PACKAGE in out

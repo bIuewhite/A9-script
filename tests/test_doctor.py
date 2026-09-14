@@ -55,6 +55,93 @@ class WmSizeTest(unittest.TestCase):
                            doctor.check_resolution((1080, 1920))[0])
 
 
+class AdbDeviceTest(unittest.TestCase):
+    """体检调 adb 时必须指定设备（-s）。
+
+    不然同时开着两个模拟器（雷电 + MuMu 之类）时，adb 会报
+    "more than one device/emulator"，分辨率和游戏安装检查会全部失败，
+    看起来像"游戏没装"，实际是没指定设备。
+    """
+
+    def _capture(self, *args, **kw):
+        import subprocess
+
+        seen = []
+        real = subprocess.run
+
+        class Fake:
+            returncode = 0
+            stdout = b"Physical size: 1920x1080\n"
+
+        def fake(cmd, **kw2):
+            seen.append(list(cmd))
+            return Fake()
+
+        subprocess.run = fake
+        try:
+            doctor._run_adb(*args, **kw)
+        finally:
+            subprocess.run = real
+        return seen[0]
+
+    def test_查分辨率和装包要带设备(self):
+        import config
+        cmd = self._capture(["shell", "wm", "size"])
+        self.assertIn("-s", cmd, "体检必须用 -s 指定设备")
+        self.assertIn(config.DEVICE_SERIAL, cmd)
+        cmd = self._capture(["shell", "pm", "list", "packages", "com.x"])
+        self.assertIn("-s", cmd)
+
+    def test_列设备和服务管理不能带设备(self):
+        # adb devices 要列出所有设备；kill-server 之类的也不能带 -s
+        for args in (["devices"], ["kill-server"], ["start-server"]):
+            cmd = self._capture(args, use_serial=False)
+            self.assertNotIn("-s", cmd, f"{args[0]} 不该带 -s")
+
+    def test_设备序列号为空时不加_s(self):
+        import config
+        old = config.DEVICE_SERIAL
+        config.DEVICE_SERIAL = ""
+        try:
+            cmd = self._capture(["shell", "wm", "size"])
+        finally:
+            config.DEVICE_SERIAL = old
+        self.assertNotIn("-s", cmd)
+
+
+class GuessPackageTest(unittest.TestCase):
+    """渠道服包名识别（4399 / 华为 / 小米 等）——用户不用自己去翻包名。"""
+
+    PM = """package:com.android.settings
+package:com.aligames.kuang.kybc.4399
+package:com.tencent.mm
+package:com.gameloft.android.ANMP.GloftA9HM
+"""
+
+    def test_能认出4399渠道服(self):
+        found = doctor.guess_game_package(self.PM)
+        self.assertIn("com.aligames.kuang.kybc.4399", found)
+        self.assertIn("com.gameloft.android.ANMP.GloftA9HM", found, "国际服也要认出来")
+        self.assertNotIn("com.android.settings", found)
+        self.assertNotIn("com.tencent.mm", found)
+
+    def test_返回顺序和去重(self):
+        found = doctor.guess_game_package(
+            "package:b.kuang.x\npackage:a.kuang.y\npackage:b.kuang.x\n")
+        self.assertEqual(found, ["b.kuang.x", "a.kuang.y"])
+
+    def test_空输入不炸(self):
+        self.assertEqual(doctor.guess_game_package(""), [])
+        self.assertEqual(doctor.guess_game_package(None), [])
+
+    def test_解析Activity(self):
+        self.assertEqual(
+            doctor.guess_activity("priority=0\ncom.aligames.kuang.kybc.4399/com.epicgames.ue4.GameActivity"),
+            "com.aligames.kuang.kybc.4399/com.epicgames.ue4.GameActivity")
+        self.assertEqual(doctor.guess_activity(""), "")
+        self.assertEqual(doctor.guess_activity("no activity here"), "")
+
+
 class DepsTest(unittest.TestCase):
     def test_依赖齐全时全过(self):
         rows = doctor.check_deps(get_module=lambda name: "9.9.9")

@@ -89,5 +89,81 @@ class ScreenStateTest(unittest.TestCase):
         self.assertNotIn('return "', body, "detect_screen 里出现了写死的状态字符串")
 
 
+class GamePackageTest(unittest.TestCase):
+    """自动认游戏包名（渠道服）：4399 / 华为 / 小米 的包名和默认的不一样，
+    脚本必须自己认出来并换过去，否则启动不了游戏、闪退检测也会一直误报。"""
+
+    class FakeADB:
+        def __init__(self, listing, fg="com.android.launcher3", running=(), activity=""):
+            self.listing = listing
+            self.fg = fg
+            self.running = list(running)
+            self.activity = activity
+            self.forced = []
+
+        def list_packages(self):
+            return self.listing
+
+        def pid_of(self, pkg):
+            return pkg in self.running
+
+        def foreground_package(self):
+            return self.fg
+
+        def resolve_activity(self, pkg):
+            return self.activity or f"{pkg}/.MainActivity"
+
+    def _run(self, adb, configured):
+        old_pkg, old_act = config.GAME_PACKAGE, config.GAME_ACTIVITY
+        config.GAME_PACKAGE = configured
+        try:
+            fake_self = type("S", (), {"adb": adb})()
+            bot.GameBot.setup_game_package(fake_self)
+            return config.GAME_PACKAGE, config.GAME_ACTIVITY
+        finally:
+            config.GAME_PACKAGE, config.GAME_ACTIVITY = old_pkg, old_act
+
+    LIST_4399 = ("package:com.android.settings\n"
+                 "package:com.aligames.kuang.kybc.4399\n"
+                 "package:com.tencent.mm\n")
+
+    def test_配置错了会自动换成4399版(self):
+        adb = self.FakeADB(self.LIST_4399)
+        pkg, act = self._run(adb, "com.aligames.kuang.kybc.tap")
+        self.assertEqual(pkg, "com.aligames.kuang.kybc.4399")
+        self.assertIn("4399", act, "Activity 也要跟着换")
+
+    def test_配置对了就不动(self):
+        adb = self.FakeADB("package:com.aligames.kuang.kybc.tap\n")
+        pkg, _ = self._run(adb, "com.aligames.kuang.kybc.tap")
+        self.assertEqual(pkg, "com.aligames.kuang.kybc.tap")
+
+    def test_包名为空时也能认出来(self):
+        adb = self.FakeADB(self.LIST_4399)
+        pkg, _ = self._run(adb, "")
+        self.assertEqual(pkg, "com.aligames.kuang.kybc.4399")
+
+    def test_同时装了多个渠道时选正在跑的那个(self):
+        listing = ("package:com.aligames.kuang.kybc.tap\n"
+                   "package:com.aligames.kuang.kybc.4399\n")
+        adb = self.FakeADB(listing, running=["com.aligames.kuang.kybc.4399"])
+        pkg, _ = self._run(adb, "")
+        self.assertEqual(pkg, "com.aligames.kuang.kybc.4399")
+
+    def test_没装游戏时保持原配置不炸(self):
+        adb = self.FakeADB("package:com.android.settings\n")
+        pkg, _ = self._run(adb, "com.aligames.kuang.kybc.tap")
+        self.assertEqual(pkg, "com.aligames.kuang.kybc.tap")
+
+    def test_设备读不到时也不炸(self):
+        class Bad(self.FakeADB):
+            def list_packages(self):
+                from adb_helper import ADBError
+                raise ADBError("设备掉线")
+
+        pkg, _ = self._run(Bad(""), "com.aligames.kuang.kybc.tap")
+        self.assertEqual(pkg, "com.aligames.kuang.kybc.tap")
+
+
 if __name__ == "__main__":
     unittest.main()

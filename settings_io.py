@@ -76,6 +76,10 @@ SETTINGS_SCHEMA = [
 
     {"key": "DEVICE_SERIAL", "label": "设备序列号", "group": "设备", "type": "str", "hint": "如 emulator-5554"},
     {"key": "ADB_PATH", "label": "adb 路径", "group": "设备", "type": "str", "hint": "雷电模拟器 adb.exe 绝对路径"},
+    {"key": "GAME_PACKAGE", "label": "游戏包名", "group": "设备", "type": "str",
+     "hint": "留空就行：脚本启动时会自动认（4399 / 华为 / 小米 等渠道服包名不一样）"},
+    {"key": "GAME_ACTIVITY", "label": "启动 Activity", "group": "设备", "type": "str",
+     "hint": "留空 = 自动识别；只有自动启动游戏失败时才需要手填"},
 ]
 
 

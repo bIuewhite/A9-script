@@ -137,5 +137,61 @@ class SettingsMergeTest(unittest.TestCase):
         self.assertNotIn("这个键不在schema里", self._read())
 
 
+class GamePackageTest(unittest.TestCase):
+    """渠道服包名识别（纯逻辑）——4399 / 华为 / 小米 / 国际服都要认出来。"""
+
+    PM = """package:com.android.settings
+package:com.aligames.kuang.kybc.4399
+package:com.tencent.mm
+package:com.gameloft.android.ANMP.GloftA9HM
+"""
+
+    def test_认出渠道服和国际服(self):
+        found = config.guess_game_package(self.PM)
+        self.assertEqual(found, ["com.aligames.kuang.kybc.4399",
+                                 "com.gameloft.android.ANMP.GloftA9HM"])
+        self.assertNotIn("com.android.settings", found)
+        self.assertNotIn("com.tencent.mm", found)
+
+    def test_空输入返回空(self):
+        self.assertEqual(config.guess_game_package(""), [])
+        self.assertEqual(config.guess_game_package(None), [])
+
+    def test_候选去重且保序(self):
+        self.assertEqual(config.guess_game_package("package:b.kuang.x\npackage:a.kuang.y\n"),
+                         ["b.kuang.x", "a.kuang.y"])
+
+    def test_优先级_前台最优先(self):
+        cands = ["a.kuang.x", "b.kuang.y"]
+        self.assertEqual(config.pick_game_package(cands, "a.kuang.x", foreground="b.kuang.y"),
+                         "b.kuang.y", "正在前台的那个最准")
+
+    def test_优先级_只有一个进程活着就用它(self):
+        cands = ["a.kuang.x", "b.kuang.y"]
+        self.assertEqual(config.pick_game_package(cands, "", running=["b.kuang.y"]),
+                         "b.kuang.y")
+
+    def test_优先级_再退到配置值(self):
+        cands = ["com.aligames.kuang.kybc.tap", "com.gameloft.x"]
+        self.assertEqual(config.pick_game_package(cands, "com.gameloft.x"),
+                         "com.gameloft.x")
+
+    def test_优先级_最后退到国服前缀(self):
+        cands = ["com.gameloft.x", "com.aligames.kuang.kybc.4399"]
+        self.assertEqual(config.pick_game_package(cands, ""),
+                         "com.aligames.kuang.kybc.4399")
+
+    def test_没有候选就返回空(self):
+        self.assertEqual(config.pick_game_package([], "com.x"), "")
+        self.assertEqual(config.pick_game_package(None, "com.x"), "")
+
+    def test_解析Activity(self):
+        self.assertEqual(
+            config.guess_activity("priority=0\ncom.a.b/com.epicgames.ue4.GameActivity"),
+            "com.a.b/com.epicgames.ue4.GameActivity")
+        self.assertEqual(config.guess_activity(""), "")
+        self.assertEqual(config.guess_activity("没有斜杠"), "")
+
+
 if __name__ == "__main__":
     unittest.main()

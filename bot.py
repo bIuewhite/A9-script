@@ -849,6 +849,49 @@ class GameBot:
         self.post_race()              # 继续/继续/错失机会 → 处理弹窗
         log("本场流程结束")
 
+    # ================= 游戏包名（自动识别） =================
+    def setup_game_package(self):
+        """开机自动认游戏包名。
+
+        狂野飙车9 国服分渠道发行（TapTap / 4399 / 华为 / 小米 / 应用宝 …），
+        包名各不相同。这里直接问模拟器：装的是哪个，就自动用哪个，
+        用户不用改代码。认不出来就保持原配置并给个提示。
+        """
+        configured = config.GAME_PACKAGE
+        try:
+            listing = self.adb.list_packages()
+        except ADBError as e:
+            log("警告：读不到已安装应用列表（%s），沿用配置的包名 %s", e, configured)
+            return
+
+        if configured and f"package:{configured}" in listing:
+            log("游戏包名：%s（配置的，已确认）", configured)
+            return
+
+        found = config.guess_game_package(listing)
+        if not found:
+            log("警告：模拟器里没找到《狂野飙车9》（配置的是 %s）", configured or "(空)")
+            log("      确认游戏装在【这个】模拟器里，或者同时开着多个模拟器时选对设备")
+            return
+
+        running = [p for p in found if self.adb.pid_of(p)]
+        fg = self.adb.foreground_package()
+        best = config.pick_game_package(found, configured, foreground=fg, running=running)
+        if not best:
+            log("警告：没能确定游戏包名，沿用 %s", configured)
+            return
+
+        config.GAME_PACKAGE = best
+        act = self.adb.resolve_activity(best)
+        if act:
+            config.GAME_ACTIVITY = act
+        log("游戏包名：配置的 %s 没找到，自动改用 %s", configured or "(空)", best)
+        if len(found) > 1:
+            log("  设备上共有 %d 个候选：%s", len(found), "、".join(found))
+        if act:
+            log("  启动 Activity：%s", act)
+        log("  （想固定下来的话，改 config.py 的 GAME_PACKAGE / GAME_ACTIVITY）")
+
     # ================= 主循环 =================
     def run(self):
         # 每次启动都重新加载 config.py。
@@ -861,6 +904,7 @@ class GameBot:
         except Exception as e:
             log("重新加载 config 失败: %s", e)
         log("A9 自动驾驶台 %s 启动", VERSION_TEXT)
+        self.setup_game_package()      # 自动认游戏包名（渠道服也能直接用）
         log("开始运行（Ctrl+C 停止）")
         if not self.foreground_is_game():
             log("游戏未在前台，先启动 ...")

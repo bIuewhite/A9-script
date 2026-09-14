@@ -15,6 +15,7 @@ settings.json
 *.exe
 # 打包给 GitHub Releases 的附件（挂到 Release 上，不进仓库）
 A9-launchers-*.zip
+A9-script-*.zip
 
 # ==================== 编辑器 / IDE ====================
 .idea/

@@ -73,10 +73,74 @@ ADB_PATH = _find_adb()
 DEVICE_SERIAL = "emulator-5554"
 
 # ==================== 游戏 ====================
-GAME_PACKAGE  = "com.aligames.kuang.kybc.tap"               # 狂野飙车9 包名
+GAME_PACKAGE  = "com.aligames.kuang.kybc.tap"               # 狂野飙车9 包名（默认 TapTap 版）
 GAME_ACTIVITY = "com.aligames.kuang.kybc.tap/.MainActivity" # 启动 Activity
 GAME_START_TIMEOUT_S = 120   # 重启游戏后，等待主界面出现的最大秒数（游戏加载较慢）
 GAME_START_WAIT_S = 40       # 重启游戏后，等待游戏加载完成的时间（秒）
+
+# 狂野飙车9 国服是分渠道发行的（TapTap / 4399 / 华为 / 小米 / 应用宝 …），
+# 每个渠道包名都不一样，但都带下面这些特征词。脚本启动时会自己认出来，
+# 不需要用户改代码（想固定下来再改 GAME_PACKAGE / GAME_ACTIVITY）。
+GAME_PACKAGE_HINTS = ("aligames", "kuang", "kybc", "gameloft", "asphalt")
+GAME_PACKAGE_PREFIX = "com.aligames.kuang.kybc"   # 国服各渠道共有的前缀
+
+
+def guess_game_package(pm_output):
+    """从 `pm list packages` 的输出里找出所有像「狂野飙车9」的包名。
+
+    输入形如 "package:com.aligames.kuang.kybc.tap"（一行一个），
+    返回按出现顺序去重的列表。
+    """
+    found = []
+    for line in str(pm_output or "").splitlines():
+        line = line.strip()
+        if not line.startswith("package:"):
+            continue
+        pkg = line.split("package:", 1)[1].strip()
+        if not pkg:
+            continue
+        low = pkg.lower()
+        if any(h in low for h in GAME_PACKAGE_HINTS) and pkg not in found:
+            found.append(pkg)
+    return found
+
+
+def guess_activity(resolve_output):
+    """从 `cmd package resolve-activity --brief <包名>` 的输出里取 "包名/Activity"。"""
+    for line in reversed(str(resolve_output or "").splitlines()):
+        line = line.strip()
+        if "/" in line and " " not in line:
+            return line
+    return ""
+
+
+def pick_game_package(candidates, configured="", foreground=None, running=()):
+    """在多个候选包里挑一个最可能是「用户正在玩的那个」。
+
+    优先级（从高到低）：
+      1. 正在前台的（他刚打开游戏，最准）
+      2. 进程还活着的（pidof 查到有 PID）
+      3. 配置里那个（如果也在候选里）
+      4. 国服前缀 com.aligames.kuang.kybc 开头的
+      5. 第一个候选
+    """
+    cands = [c for c in (candidates or []) if c]
+    if not cands:
+        return ""
+    if foreground and foreground in cands:
+        return foreground
+    alive = [c for c in cands if c in set(running or ())]
+    if len(alive) == 1:
+        return alive[0]
+    if configured and configured in cands:
+        return configured
+    if len(alive) > 1:
+        return alive[0]
+    for c in cands:
+        if c.lower().startswith(GAME_PACKAGE_PREFIX):
+            return c
+    return cands[0]
+
 RELAUNCH_TAP = (529, 467)    # 加载完成后需点击一次的坐标，才能回到主界面
 
 # ==================== 目录 ====================

@@ -110,9 +110,57 @@ class ADB:
         return save_path
 
     # ---------------- 应用 ----------------
+    def list_packages(self):
+        """列出模拟器里所有已安装包（原始文本，交给 config.guess_game_package 解析）。"""
+        return self._run("shell", "pm", "list", "packages")
+
+    def resolve_activity(self, pkg):
+        """查某个包的入口 Activity，返回 "包名/Activity"；查不到返回 ""。"""
+        try:
+            out = self._run("shell", "cmd", "package", "resolve-activity", "--brief", pkg)
+        except ADBError:
+            return ""
+        return config.guess_activity(out)
+
+    def pid_of(self, pkg=None):
+        """进程是否还活着（拿不到信息时返回 None）。"""
+        try:
+            rc, out = self._run_raw("shell", "pidof", pkg or config.GAME_PACKAGE)
+        except ADBError:
+            return None
+        if rc != 0:
+            return False
+        return bool(out.strip())
+
+    def is_game_foreground(self):
+        pkg = self.foreground_package()
+        return bool(pkg) and pkg == config.GAME_PACKAGE
+
     def force_stop(self, pkg=None):
         self._run("shell", "am", "force-stop", pkg or config.GAME_PACKAGE)
 
-    def start_app(self, activity=None):
-        activity = activity or config.GAME_ACTIVITY
-        self._run("shell", "am", "start", "-n", activity)
+    def start_app(self, activity=None, wait_s=5.0):
+        """启动游戏。
+
+        先试配置里的 Activity；没起来就用 monkey 按包名启动（不需要知道入口类）。
+        渠道服（4399/华为…）的 Activity 常常和默认值不同，monkey 兜底能救回来。
+        返回是否已经在前台。
+        """
+        act = activity or config.GAME_ACTIVITY
+        attempts = []
+        if act and "/" in act:
+            attempts.append(("am", act))
+        attempts.append(("monkey", config.GAME_PACKAGE))
+
+        for kind, value in attempts:
+            if kind == "am":
+                self._run("shell", "am", "start", "-n", value)
+            else:
+                self._run("shell", "monkey", "-p", value, "-c",
+                          "android.intent.category.LAUNCHER", "1")
+            deadline = time.time() + wait_s
+            while time.time() < deadline:
+                if self.is_game_foreground():
+                    return True
+                time.sleep(0.4)
+        return False
