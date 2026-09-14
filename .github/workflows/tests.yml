@@ -1,0 +1,37 @@
+name: tests
+
+# 只跑离线测试：不需要模拟器、游戏或网络。
+# 覆盖的是最容易出错、也最不该被改坏的部分：模板匹配的阈值 / 防误判逻辑，
+# 以及配置与 settings.json 的一致性。
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  unittest:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ["3.10", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 安装 Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: 语法检查（全部 Python 文件都能编译）
+        run: python -m compileall -q .
+
+      - name: 运行单元测试
+        run: python -m unittest discover -s tests -t . -v

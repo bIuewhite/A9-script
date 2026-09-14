@@ -1,0 +1,26 @@
+# ============================================================
+#  Git 换行符规则（这个文件很重要，别删）
+# ============================================================
+# 背景：Windows 上的 core.autocrlf=true 会在提交时把 CRLF 转成 LF，
+# 于是仓库里存的是 LF。别人 clone 下来（或者在 Linux 上跑 CI）拿到的
+# 就是 LF 的 .bat —— 而 cmd.exe 解析纯 LF 的批处理会出错
+# （报 "xxx is not recognized as an internal or external command"）。
+#
+# 所以这里明确钉死：.bat 必须【始终】以 CRLF 检出。
+# tests/test_bat_files.py 会检查这一点。
+
+# 批处理：永远用 CRLF 检出（不管在什么系统上）
+*.bat   text eol=crlf
+
+# 其余文本：交给 git 正常处理
+*.py    text
+*.md    text
+*.txt   text
+*.cs    text
+*.yml   text
+*.json  text
+
+# 二进制：不要做任何换行符转换
+*.png   binary
+*.ico   binary
+*.exe   binary

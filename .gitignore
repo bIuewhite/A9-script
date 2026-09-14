@@ -1,0 +1,48 @@
+# ==================== 运行产物（不要提交） ====================
+logs/
+shots/
+tmp_tests/
+__pycache__/
+*.py[cod]
+*.log
+
+# ==================== 本机个人配置（不要提交） ====================
+# python_path.txt 里是你自己电脑上 python.exe 的绝对路径
+python_path.txt
+# settings.json 里存的是本机 adb 路径 / 设备序列号 / 你自己的调参
+settings.json
+# 编译出来的 exe 启动器（用 build_launcher.bat 自己生成）
+*.exe
+# 打包给 GitHub Releases 的附件（挂到 Release 上，不进仓库）
+A9-launchers-*.zip
+
+# ==================== 编辑器 / IDE ====================
+.idea/
+.vscode/
+# Office 打开文档时生成的临时锁文件（~$xxx.docx），别提交
+~$*
+
+# ==================== 本地保留的文档 ====================
+# 图文教程已经整合进 README.md，Word 版只留本地（方便打印/发群），不进仓库
+*.docx
+
+# ==================== 网页上传用的干净副本 ====================
+# 【上传用】… 那个文件夹只是给 GitHub 网页上传拖拽用的副本，不该进仓库
+【上传用】*/
+
+# ==================== 作者自己的上传辅助（不进仓库）====================
+# 一键上传到GitHub.bat 是给作者用的；upload_config.txt 里写着你的邮箱
+一键上传到GitHub.bat
+upload_config.txt
+# 上传诊断（脚本 + 它生成的报告）
+上传诊断.bat
+上传诊断.txt
+upload_diag.py
+
+# ==================== 个人车卡模板 ====================
+# 每个人的车不一样，别人 clone 下来也用不上；
+# 车卡请用「采集车辆」自己采（保存成 templates/car_1.png, car_2.png ...）
+#
+# 注意：这里只排除 car_1 / car_2 这种「编号车卡」，
+# 不能写成 templates/car_*.png —— 那会连界面标志 car_list.png 一起排除掉。
+templates/car_[0-9]*.png

@@ -1,0 +1,9 @@
+# 狂野飙车9 自动脚本 —— Python 依赖
+#   安装：pip install -r requirements.txt
+#
+# 需要 Python 3.10 或更高（本机验证于 3.14.6）。
+# 界面用 tkinter，属 Python 标准库，Windows 官方安装包自带，不需要 pip 安装；
+# 若提示 No module named tkinter，重装 Python 时勾上 "tcl/tk and IDLE"。
+
+opencv-python>=4.8
+numpy>=1.24
