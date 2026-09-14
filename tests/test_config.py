@@ -12,7 +12,7 @@ import unittest
 
 import config
 from settings_io import SETTINGS_SCHEMA, _coerce, save_settings
-from tests import cleanup, ensure_tmp_root
+from tests import PROJECT_ROOT, cleanup, ensure_tmp_root
 
 
 class ConfigSanityTest(unittest.TestCase):
@@ -135,6 +135,21 @@ class SettingsMergeTest(unittest.TestCase):
     def test_schema外的键不会写进去(self):
         save_settings({"这个键不在schema里": 123})
         self.assertNotIn("这个键不在schema里", self._read())
+
+
+class HygieneTest(unittest.TestCase):
+    """仓库卫生：开发时用的临时脚本不能留在根目录。
+
+    下划线开头的 _xxx.py 是开发/排查用的临时脚本（打包、诊断之类），
+    很容易被 git add -A 顺手提交、甚至打进 Release 整合包。这里直接拦住。
+    """
+
+    def test_根目录没有开发临时脚本(self):
+        root = PROJECT_ROOT
+        strays = sorted(f for f in os.listdir(root)
+                        if f.startswith("_") and f.endswith(".py"))
+        self.assertEqual(strays, [],
+                         f"根目录有临时脚本没删：{strays}（会被误提交、误打包）")
 
 
 class GamePackageTest(unittest.TestCase):
